@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#183b32">
+  <title>Edit your research portfolio</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="editor.css">
+  <script src="content-schema.js" defer></script>
+  <script src="draft-store.js" defer></script>
+  <script src="content.js" defer></script>
+  <script src="editor.js" defer></script>
+</head>
+<body>
+  <header class="editor-header"><a class="editor-brand" href="./">mh<span>.</span></a><span>YOUR RESEARCH PORTFOLIO</span><a href="./" class="quiet-link">View live website ↗</a></header>
+  <main class="editor-wrap">
+    <div class="editor-intro"><p class="eyebrow">WEBSITE EDITOR</p><h1>Make it yours.</h1><p>Update your text, photo, links, and publications here. Preview your changes, then publish through your GitHub account.</p></div>
+    <section class="publish-guide" aria-labelledby="publish-title"><div><h2 id="publish-title">How to publish your changes</h2><ol><li>Edit the fields below and select <strong>Preview draft</strong>.</li><li>Select <strong>Download changes</strong> to get <code>site-content.json</code>.</li><li>Open <strong>GitHub upload</strong>, sign in as <strong>HM004-Prog</strong>, upload that file to the main branch, and select <strong>Commit changes</strong>. Keep its exact filename.</li></ol><p>Your public site updates after GitHub finishes publishing. Drafts stay in this browser until you publish them. GitHub controls who can update the live site.</p></div><a class="button secondary" href="https://github.com/HM004-Prog/hm004-prog.github.io/upload/main" target="_blank" rel="noopener noreferrer">GitHub upload ↗</a></section>
+    <div id="editor-status" class="status" role="status" aria-live="polite">Loading your published content…</div>
+    <div id="draft-notice" class="draft-notice" hidden><p>A saved draft was found in this browser.</p><button type="button" id="restore-draft" class="button secondary">Restore saved draft</button><button type="button" id="discard-draft" class="text-button">Discard saved draft</button></div>
+    <div class="editor-layout">
+      <nav id="editor-sections" aria-label="Editor sections"></nav>
+      <form id="editor-form" novalidate><div id="editor-fields"></div></form>
+    </div>
+    <div class="editor-actions"><p id="draft-state">The live website is unchanged.</p><div><button class="button secondary" id="preview-draft" type="button" disabled>Preview draft ↗</button><button class="button primary" id="download-changes" type="button" disabled>Download changes ↓</button><a class="button secondary" href="https://github.com/HM004-Prog/hm004-prog.github.io/upload/main" target="_blank" rel="noopener noreferrer">GitHub upload ↗</a></div></div>
+  </main>
+  <footer class="editor-wrap editor-footer">Your website is owned and published by your GitHub account. For layout or styling changes, <a href="https://github.com/HM004-Prog/hm004-prog.github.io" target="_blank" rel="noopener noreferrer">open the website files on GitHub</a>.</footer>
+</body>
+</html>

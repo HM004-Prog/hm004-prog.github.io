@@ -1,4 +1,6 @@
 'use strict';
+(async () => {
+await window.PORTFOLIO_CONTENT_READY;
 
 const records=window.PORTFOLIO_PUBLICATIONS;
 const filterButtons=[...document.querySelectorAll('[data-filter]')];
@@ -27,8 +29,8 @@ function updatePublications(){
   publicationToggle.setAttribute('aria-expanded',String(publicationsExpanded));
   publicationToggle.querySelector('span').textContent=publicationsExpanded?'Show fewer publications':`Show all publications (${records.length})`;
   if(filtering){publicationStatus.textContent=`${count} matching ${count===1?'publication':'publications'} · searching all listed work`;}
-  else if(publicationsExpanded){publicationStatus.textContent=`${count} publications · 11 journal articles, 1 conference abstract, 1 publisher correction`;}
-  else{publicationStatus.textContent=`${count} featured journal articles`;}
+  else if(publicationsExpanded){publicationStatus.textContent=`${count} publications · full listed record`;}
+  else{publicationStatus.textContent=`${count} featured ${count===1?'publication':'publications'}`;}
 }
 function setFilter(value){activeFilter=value;for(const button of filterButtons){const selected=button.dataset.filter===value;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));}updatePublications();}
 filterButtons.forEach(button=>button.addEventListener('click',()=>setFilter(button.dataset.filter)));
@@ -51,3 +53,5 @@ function downloadCitations(keys,name){const blob=new Blob([keys.map(toBibTeX).jo
 document.querySelectorAll('[data-citation]').forEach(button=>button.addEventListener('click',()=>downloadCitations([button.dataset.citation],`${button.dataset.citation}.bib`)));
 document.getElementById('download-all').addEventListener('click',()=>downloadCitations(records.map(r=>r.id),'magan-himanshu-publications.bib'));
 updatePublications();
+
+})();
