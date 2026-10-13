@@ -9,10 +9,14 @@
   const navigation = document.querySelector('#editor-sections');
   const clone = value => JSON.parse(JSON.stringify(value));
   const topics = {'photocatalysis':'Photocatalysis','nanomaterials':'Nanomaterials','liquid-crystals':'Liquid crystals','energy-storage':'Energy storage'};
-  let data, savedDraft, selected = 'Profile', removed;
+  const {createClient,encryptVault,decryptVault,fingerprint} = window.PORTFOLIO_PUBLISHING;
+  const publisher = createClient();
+  const connectionStatus = document.querySelector('#connection-status');
+  let loadedFromRepository=false;
+  let data, savedDraft, savedDraftBaseSha, selected = 'Profile', removed, baselineData, baseSha, savedVault, lockTimer, publishing = false, waitingForLive = null;
   function tell(message, error = false) { status.textContent = message; status.classList.toggle('error', error); }
   async function storeDraft() {
-    try { await window.PORTFOLIO_DRAFTS.set(clone(data)); state.textContent = 'Draft saved in this browser. The live website is unchanged.'; }
+    try { await window.PORTFOLIO_DRAFTS.set({data:clone(data),baseSha}); state.textContent = 'Draft saved in this browser. Select Save and publish to update the website.'; }
     catch { state.textContent = 'Browser storage is unavailable or full. Download changes to keep this draft.'; }
   }
   function element(tag, className, text) {
@@ -112,28 +116,135 @@
   }
   document.querySelector('#editor-form').addEventListener('submit', event => event.preventDefault());
   document.querySelector('#preview-draft').addEventListener('click', async () => {
-    try { validate(data); await window.PORTFOLIO_DRAFTS.set(clone(data)); window.open('./?preview=1','_blank','noopener'); tell('Draft preview opened. Your public site is unchanged.'); }
+    try { validate(data); await window.PORTFOLIO_DRAFTS.set({data:clone(data),baseSha}); window.open('./?preview=1','_blank','noopener'); tell('Draft preview opened. Your public site is unchanged.'); }
     catch(error) { tell(error.message, true); }
   });
   document.querySelector('#download-changes').addEventListener('click', () => {
     try {
       validate(data); const file = new Blob([JSON.stringify(data,null,2)+'\n'],{type:'application/json'}); const url = URL.createObjectURL(file); const link = element('a'); link.href = url; link.download = 'site-content.json'; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-      tell('Changes downloaded. Upload site-content.json using GitHub upload, then select Commit changes. If your browser added “(1)” to the filename, rename it to site-content.json first.');
-      state.textContent = 'Downloaded changes are ready to publish through GitHub.';
+      tell('A backup of your draft was downloaded. Use Save and publish to update the website directly.');
     } catch(error) { tell(error.message,true); }
   });
   document.querySelector('#restore-draft').addEventListener('click', () => {
-    try { data = clone(validate(savedDraft)); render(); document.querySelector('#draft-notice').hidden = true; state.textContent = 'Saved draft restored. The live website is unchanged.'; tell('Your saved draft is ready to edit.'); }
+    try { data = clone(validate(savedDraft)); baseSha = savedDraftBaseSha; render(); updateConnection(); document.querySelector('#draft-notice').hidden = true; state.textContent = 'Saved draft restored. The live website is unchanged.'; tell('Your saved draft is ready to edit.'); }
     catch(error) { tell(error.message,true); }
   });
   document.querySelector('#discard-draft').addEventListener('click', async () => { await window.PORTFOLIO_DRAFTS.remove(); savedDraft = null; document.querySelector('#draft-notice').hidden = true; tell('Editing the current published content.'); });
+
+  function connectionMessage(message, error = false) { connectionStatus.textContent = message; connectionStatus.classList.toggle('error',error); }
+  function updateConnection() {
+    const connected = publisher.isConnected();
+    document.querySelector('#connection-badge').textContent = connected ? 'Connected as HM004-Prog' : savedVault ? 'Locked' : 'Not connected';
+    document.querySelector('#connection-badge').classList.toggle('connected',connected);
+    document.querySelector('#connect-form').hidden = connected || Boolean(savedVault);
+    document.querySelector('#unlock-form').hidden = connected || !savedVault;
+    document.querySelector('#connected-actions').hidden = !connected;
+    document.querySelector('#save-publish').disabled = !data || !connected || !baseSha || publishing || publisher.hasPending() || Boolean(waitingForLive);
+    document.querySelector('#load-latest').disabled = !data || publishing;
+    document.querySelector('#check-save').hidden = !publisher.hasPending() && !waitingForLive;
+  }
+  function lockPublishing() {
+    clearTimeout(lockTimer); publisher.disconnect();
+    for (const id of ['publishing-key','new-editor-password','repeat-editor-password','unlock-editor-password']) document.getElementById(id).value = '';
+    updateConnection(); connectionMessage('Publishing is locked. Unlock or connect to publish changes.');
+  }
+  function resetLockTimer() { if (publisher.isConnected()) { clearTimeout(lockTimer); lockTimer = setTimeout(()=>{ if (publishing) resetLockTimer(); else lockPublishing(); },15*60*1000); } }
+  for (const event of ['pointerdown','keydown']) document.addEventListener(event,resetLockTimer,{passive:true});
+  window.addEventListener('pagehide',()=>publisher.disconnect());
+  let disabledControls = new Map();
+  function setBusy(busy) {
+    publishing = busy;
+    if (busy) {
+      disabledControls = new Map([...document.querySelectorAll('#editor-form input,#editor-form textarea,#editor-form select,#editor-form button,#editor-sections button,.connection-panel input,.connection-panel button,.editor-actions button,#draft-notice button')].map(node=>[node,node.disabled]));
+      disabledControls.forEach((_,node)=>{node.disabled=true;});
+    } else { disabledControls.forEach((disabled,node)=>{node.disabled=disabled;}); disabledControls.clear(); }
+    updateConnection();
+  }
+  async function acceptConnection(result) {
+    validate(result.data);
+    if (!baseSha && fingerprint(baselineData) === fingerprint(result.data)) baseSha = result.sha;
+    updateConnection(); resetLockTimer();
+    if (baseSha !== result.sha) { connectionMessage('Connected. The published content changed since this draft began. Use Load latest published content and review your draft before saving.',true); return; }
+    connectionMessage('Connected as HM004-Prog. Edit your portfolio and select Save and publish.');
+  }
+  document.querySelector('#remember-connection').addEventListener('change',event=>{document.querySelector('#password-setup').hidden=!event.target.checked;});
+  document.querySelector('#connect-form').addEventListener('submit',async event=>{
+    event.preventDefault(); const keyInput = document.querySelector('#publishing-key'); let key = keyInput.value.trim(); keyInput.value = '';
+    const remember = document.querySelector('#remember-connection').checked;
+    let password = document.querySelector('#new-editor-password').value;
+    const repeated = document.querySelector('#repeat-editor-password').value;
+    document.querySelector('#new-editor-password').value = ''; document.querySelector('#repeat-editor-password').value = '';
+    if (remember && (password.length < 12 || password !== repeated)) { connectionMessage('Use matching editor passwords of at least 12 characters.',true); key=''; password=''; return; }
+    setBusy(true); connectionMessage('Verifying your publishing account…');
+    try {
+      const result = await publisher.connect(key);
+      if (remember) { savedVault = await encryptVault(key,password); await window.PORTFOLIO_VAULT.set(savedVault); }
+      await acceptConnection(result);
+    } catch(error) { if (!publisher.isConnected()) lockPublishing(); connectionMessage(error.message,true); }
+    finally { key=''; password=''; setBusy(false); }
+  });
+  document.querySelector('#unlock-form').addEventListener('submit',async event=>{
+    event.preventDefault(); const input = document.querySelector('#unlock-editor-password'); let password = input.value; input.value=''; let key='';
+    setBusy(true); connectionMessage('Unlocking your publishing connection…');
+    try { key=await decryptVault(savedVault,password); const result=await publisher.connect(key); await acceptConnection(result); }
+    catch(error) { lockPublishing(); connectionMessage(error.message,true); }
+    finally { key=''; password=''; setBusy(false); }
+  });
+  document.querySelector('#use-new-key').addEventListener('click',()=>{document.querySelector('#unlock-form').hidden=true;document.querySelector('#connect-form').hidden=false;});
+  document.querySelector('#lock-publishing').addEventListener('click',lockPublishing);
+  document.querySelector('#forget-connection').addEventListener('click',async()=>{
+    await window.PORTFOLIO_VAULT.remove(); savedVault=null; lockPublishing(); connectionMessage('Saved connection removed from this device. The GitHub key itself is unchanged.');
+  });
+  document.querySelector('#load-latest').addEventListener('click',async()=>{
+    setBusy(true); connectionMessage('Loading the latest published content…');
+    try {
+      const latest=await publisher.read(publisher.isConnected());validate(latest.data);
+      if (fingerprint(data)!==fingerprint(latest.data)) { savedDraft=clone(data);savedDraftBaseSha=baseSha;await window.PORTFOLIO_DRAFTS.set({data:savedDraft,baseSha:savedDraftBaseSha});document.querySelector('#draft-notice').hidden=false; }
+      data=clone(latest.data);baselineData=clone(latest.data);baseSha=latest.sha;removed=null;render();connectionMessage('Latest content loaded. Your previous draft is available using Restore saved draft.');
+    } catch(error) { connectionMessage(error.message,true); }
+    finally { setBusy(false); }
+  });
+  async function waitForPublished(snapshot) {
+    waitingForLive=snapshot; updateConnection();
+    for (let attempt=0;attempt<18;attempt++) {
+      try {
+        const response=await fetch('site-content.json?published='+encodeURIComponent(snapshot.publishedAt),{cache:'no-store',credentials:'omit'});
+        if (response.ok) { const live=await response.json();if (live.publishedAt===snapshot.publishedAt && fingerprint(live)===fingerprint(snapshot)) {
+          waitingForLive=null; connectionMessage('Published successfully. Your changes are live.');state.textContent='Your changes are live on the public website.';document.querySelector('#published-site-link').hidden=false;updateConnection();return;
+        } }
+      } catch { /* A saved commit is retained while the public deployment catches up. */ }
+      if (attempt<17) await new Promise(resolve=>setTimeout(resolve,8000));
+    }
+    connectionMessage('Saved to GitHub. The public website is still updating. Use Check save status to check again.');state.textContent='Saved; waiting for the public website to update.';updateConnection();
+  }
+  async function finishSave(result) {
+    data=clone(validate(result.data));baselineData=clone(data);baseSha=result.sha;
+    try { await window.PORTFOLIO_DRAFTS.set({data:clone(data),baseSha}); } catch { /* The confirmed GitHub save remains valid when local storage is unavailable. */ }
+    connectionMessage('Changes saved. Publishing your website…');state.textContent='Changes saved. Waiting for GitHub Pages to publish them.';
+    await waitForPublished(data);
+  }
+  document.querySelector('#save-publish').addEventListener('click',async()=>{
+    try { validate(data); } catch(error) { tell(error.message,true);return; }
+    setBusy(true);connectionMessage('Saving your changes…');document.querySelector('#published-site-link').hidden=true;
+    try { await finishSave(await publisher.save(clone(data),baseSha)); }
+    catch(error) { if (['401','403'].includes(error.code)) lockPublishing();connectionMessage(error.message,true);state.textContent='Your draft has been kept.'; }
+    finally { setBusy(false);resetLockTimer(); }
+  });
+  document.querySelector('#check-save').addEventListener('click',async()=>{
+    setBusy(true);connectionMessage('Checking your save…');
+    try { if (publisher.hasPending()) await finishSave(await publisher.checkPending());else if (waitingForLive) await waitForPublished(waitingForLive); }
+    catch(error) { connectionMessage(error.message,true); }
+    finally { setBusy(false); }
+  });
   (async () => {
     try {
-      const response = await fetch('site-content.json',{cache:'no-store'}); if (!response.ok) throw new Error('Could not load the published content. Reload this page to try again.');
-      data = clone(validate(await response.json()));
-      try { const stored = await window.PORTFOLIO_DRAFTS.get(); if (stored) { savedDraft = stored; if (JSON.stringify(savedDraft) !== JSON.stringify(data)) document.querySelector('#draft-notice').hidden = false; } } catch { /* Download remains available when browser storage is disabled. */ }
+      try { const initial=await publisher.read(false);data=clone(validate(initial.data));baseSha=initial.sha;loadedFromRepository=true; }
+      catch { const response = await fetch('site-content.json',{cache:'no-store'}); if (!response.ok) throw new Error('Could not load the published content. Reload this page to try again.');data=clone(validate(await response.json()));baseSha=null; }
+      baselineData=clone(data);
+      try { const stored = await window.PORTFOLIO_DRAFTS.get(); if (stored) { savedDraft = stored.data || stored; savedDraftBaseSha=stored.baseSha || null;if (fingerprint(savedDraft) !== fingerprint(data)) document.querySelector('#draft-notice').hidden = false; } } catch { /* Backups remain available when browser storage is disabled. */ }
+      try { savedVault=await window.PORTFOLIO_VAULT.get(); } catch { savedVault=null; }
       sections.forEach(section => navigation.append(button(section, () => { selected = section; render(); }, 'section-button')));
-      render(); document.querySelector('#preview-draft').disabled = false; document.querySelector('#download-changes').disabled = false; tell('Published content loaded. You can edit independently whenever you want.');
+      render(); document.querySelector('#preview-draft').disabled = false; document.querySelector('#download-changes').disabled = false;updateConnection();tell(loadedFromRepository?'Latest repository content loaded. Connect or unlock publishing, then save directly from this editor.':'Website content loaded. Connect publishing to verify the latest version before saving.');
     } catch(error) { tell(error.message,true); state.textContent = 'Editor unavailable until the published content can be loaded.'; }
   })();
 })();

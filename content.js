@@ -95,7 +95,8 @@
     try {
       let data;
       if (new URLSearchParams(location.search).has('preview')) {
-        const draft = await window.PORTFOLIO_DRAFTS.get();
+        const stored = await window.PORTFOLIO_DRAFTS.get();
+        const draft = stored?.data || stored;
         if (draft) data = validate(draft);
         const banner = document.createElement('div'); banner.className = 'draft-banner';
         banner.append(document.createTextNode(data ? 'Draft preview — these changes are not published. ' : 'No local draft found — showing the published site. '));

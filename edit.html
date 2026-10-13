@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; connect-src 'self' https://api.github.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; upgrade-insecure-requests">
   <meta name="theme-color" content="#183b32">
   <title>Edit your research portfolio</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
@@ -11,21 +13,38 @@
   <script src="content-schema.js" defer></script>
   <script src="draft-store.js" defer></script>
   <script src="content.js" defer></script>
+  <script src="publisher.js" defer></script>
   <script src="editor.js" defer></script>
 </head>
 <body>
   <header class="editor-header"><a class="editor-brand" href="./">mh<span>.</span></a><span>YOUR RESEARCH PORTFOLIO</span><a href="./" class="quiet-link">View live website ↗</a></header>
   <main class="editor-wrap">
-    <div class="editor-intro"><p class="eyebrow">WEBSITE EDITOR</p><h1>Make it yours.</h1><p>Update your text, photo, links, and publications here. Preview your changes, then publish through your GitHub account.</p></div>
-    <section class="publish-guide" aria-labelledby="publish-title"><div><h2 id="publish-title">How to publish your changes</h2><ol><li>Edit the fields below and select <strong>Preview draft</strong>.</li><li>Select <strong>Download changes</strong> to get <code>site-content.json</code>.</li><li>Open <strong>GitHub upload</strong>, sign in as <strong>HM004-Prog</strong>, upload that file to the main branch, and select <strong>Commit changes</strong>. Keep its exact filename.</li></ol><p>Your public site updates after GitHub finishes publishing. Drafts stay in this browser until you publish them. GitHub controls who can update the live site.</p></div><a class="button secondary" href="https://github.com/HM004-Prog/hm004-prog.github.io/upload/main" target="_blank" rel="noopener noreferrer">GitHub upload ↗</a></section>
+    <div class="editor-intro"><p class="eyebrow">WEBSITE EDITOR</p><h1>Make it yours.</h1><p>Update your portfolio, preview your draft, and select <strong>Save and publish</strong>. Your website updates automatically.</p></div>
+    <section class="publish-guide" aria-labelledby="publish-title"><div><h2 id="publish-title">Edit. Preview. Publish.</h2><p>Connect your publishing account below once. Then edit any section and select <strong>Save and publish</strong> — no file upload needed. The editor will confirm when your changes are live.</p></div><a class="button secondary" href="./" target="_blank" rel="noopener noreferrer">View live website ↗</a></section>
+    <section class="connection-panel" aria-labelledby="connection-title">
+      <div class="connection-heading"><h2 id="connection-title">Publishing account</h2><span id="connection-badge" class="connection-badge">Not connected</span></div>
+      <div id="connection-status" class="status" role="status" aria-live="polite">Only the HM004-Prog owner account can publish this website.</div>
+      <form id="connect-form" novalidate>
+        <details class="setup-guide"><summary>First-time setup — create your publishing key</summary><ol><li><a id="create-publishing-key" href="https://github.com/settings/personal-access-tokens/new?name=Portfolio%20editor&amp;description=Publish%20my%20research%20portfolio&amp;target_name=HM004-Prog&amp;expires_in=90&amp;contents=write" target="_blank" rel="noopener noreferrer">Open GitHub’s key setup</a> and sign in as <strong>HM004-Prog</strong>.</li><li>Choose <strong>Only select repositories</strong> and select <strong>hm004-prog.github.io</strong>.</li><li>Keep <strong>Contents: read and write</strong> and the automatically required <strong>Metadata: read</strong>. Generate the key and paste it in the field below.</li></ol><p>This setup is needed once per key. Replace the key when it expires. The key can change files in this website repository, so restrict it to this repository.</p></details>
+        <label class="field"><span>GitHub publishing key</span><input id="publishing-key" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" aria-describedby="key-help"></label><p id="key-help" class="connection-help">Sent only to GitHub to verify your account and publish your edits. Never included in website content or downloads.</p>
+        <label class="check-label"><input type="checkbox" id="remember-connection">Remember this connection on this device, protected by an editor password</label>
+        <div id="password-setup" hidden><label class="field"><span>Create an editor password</span><input id="new-editor-password" type="password" autocomplete="new-password" aria-describedby="password-help"></label><label class="field"><span>Repeat editor password</span><input id="repeat-editor-password" type="password" autocomplete="new-password"></label><p id="password-help" class="connection-help">At least 12 characters. This encrypts the connection in your browser. On later visits, unlock it here with this password. The password is not sent to GitHub.</p></div>
+        <button class="button primary" id="connect-publishing" type="submit">Connect publishing</button>
+      </form>
+      <form id="unlock-form" hidden><p>A password-protected publishing connection is saved on this device.</p><label class="field"><span>Editor password</span><input id="unlock-editor-password" type="password" autocomplete="current-password"></label><div class="connection-actions"><button class="button primary" type="submit">Unlock publishing</button><button class="text-button" type="button" id="use-new-key">Use a new publishing key</button></div></form>
+      <div id="connected-actions" class="connection-actions" hidden><button class="button secondary" id="lock-publishing" type="button">Lock publishing</button><button class="text-button" id="forget-connection" type="button">Forget saved connection on this device</button></div>
+      <button class="text-button load-latest" id="load-latest" type="button" disabled>Load latest published content</button>
+      <button class="button secondary" id="check-save" type="button" hidden>Check save status</button>
+      <a id="published-site-link" href="./" target="_blank" rel="noopener noreferrer" hidden>View published website ↗</a>
+    </section>
     <div id="editor-status" class="status" role="status" aria-live="polite">Loading your published content…</div>
     <div id="draft-notice" class="draft-notice" hidden><p>A saved draft was found in this browser.</p><button type="button" id="restore-draft" class="button secondary">Restore saved draft</button><button type="button" id="discard-draft" class="text-button">Discard saved draft</button></div>
     <div class="editor-layout">
       <nav id="editor-sections" aria-label="Editor sections"></nav>
       <form id="editor-form" novalidate><div id="editor-fields"></div></form>
     </div>
-    <div class="editor-actions"><p id="draft-state">The live website is unchanged.</p><div><button class="button secondary" id="preview-draft" type="button" disabled>Preview draft ↗</button><button class="button primary" id="download-changes" type="button" disabled>Download changes ↓</button><a class="button secondary" href="https://github.com/HM004-Prog/hm004-prog.github.io/upload/main" target="_blank" rel="noopener noreferrer">GitHub upload ↗</a></div></div>
+    <div class="editor-actions"><p id="draft-state">The live website is unchanged.</p><div><button class="button secondary" id="preview-draft" type="button" disabled>Preview draft ↗</button><button class="button secondary" id="download-changes" type="button" disabled>Download backup ↓</button><button class="button primary" id="save-publish" type="button" disabled>Save and publish</button></div></div>
   </main>
-  <footer class="editor-wrap editor-footer">Your website is owned and published by your GitHub account. For layout or styling changes, <a href="https://github.com/HM004-Prog/hm004-prog.github.io" target="_blank" rel="noopener noreferrer">open the website files on GitHub</a>.</footer>
+  <footer class="editor-wrap editor-footer">Your website is owned by your GitHub account. Content changes publish directly from this editor. Publishing locks after 15 minutes without activity. For layout or styling changes, <a href="https://github.com/HM004-Prog/hm004-prog.github.io" target="_blank" rel="noopener noreferrer">open the website files on GitHub</a>.</footer>
 </body>
 </html>
